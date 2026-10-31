@@ -1,0 +1,169 @@
+###############################################################################
+# TOPIKOK IDŐBELI VÁLTOZÁSA – EGYENKÉNTI ÁBRÁK
+#
+# A végső modell hatásbecsléséből (hatas_becsles_K30.rds) topikonként külön
+# képet ment: a téma várható aránya az időben, 95%-os konfidenciasávval,
+# havi dátumtengellyel és a pandémia négy időszakának jelölésével.
+# A modellt nem kell újrafuttatni, csak a mentett hatásbecslést tölti be.
+###############################################################################
+
+rm(list = ls())
+
+library(data.table)
+library(stm)
+
+##################
+#0. Beállítások  #
+##################
+
+EREDMENY_MAPPA <- "C:/Users/Gergő/Desktop/EKÖP/STM/STM_eles_futtatas"
+KIMENET_MAPPA  <- file.path(EREDMENY_MAPPA, "topik_abrak")
+
+# Mely topikokról készüljön ábra: 1:30 = mind, vagy pl. c(2, 5, 7, 10, 15, 16, 18, 26)
+ABRAZOLT_TOPIKOK <- c(2, 5, 7, 10, 15, 16, 18, 26)
+
+# A nyolc vizsgált topik a közös ábrához (3. ábra)
+VIZSGALT_TOPIKOK <- c(2, 5, 7, 10, 15, 16, 18, 26)
+
+# Topiknevek (a 2. táblázat szerint)
+TOPIK_NEVEK <- c(
+  "Gazdaság",
+  "Álhírek, összeesküvés-elméletek és oltásellenes tartalmak",
+  "Koronavírus szövődményei és társbetegségek",
+  "Oltási regisztráció és logisztika",
+  "Járványügyi korlátozások és kijárási tilalom",
+  "Nyugati vakcinák",
+  "Ideológiai és rendszerkritikai véleménydiskurzus",
+  "Sporthírek és szerbiai hírek",
+  "Rendőrségi ellenőrzések és megyei járványügyi helyzet",
+  "Az Operatív Törzs és a tisztifőorvos napi tájékoztatói",
+  "Baleseti hírek",
+  "Kórházi ellátás és a Magyar Orvosi Kamara",
+  "Nemzetközi járványügyi statisztikák",
+  "Keleti vakcinák",
+  "Járványhullámok és emlékeztető oltások",
+  "Munkahelyi és kötelező oltások szabályozása",
+  "Költségvetés és állami gazdasági támogatások",
+  "Védettségi igazolvány és tesztelési szabályok",
+  "Napi járványügyi statisztikák és kórházi adatok",
+  "Bulvár és személyes megélések",
+  "JUNK (technikai és tematikus zaj)",
+  "Szomszédos országok járványadatai (Románia)",
+  "Szlovák és cseh egészségügyi belpolitika",
+  "Belföldi pártpolitika és ellenzék",
+  "Egyetemi és állami elismerések",
+  "Miniszterelnöki rádióinterjúk és kormányzati kommunikáció",
+  "Oltási hajlandóság és közvélemény-kutatások",
+  "Nemzetközi és amerikai politika",
+  "Európai uniós politika és közös vakcinabeszerzés",
+  "Oroszország és Ukrajna járványhelyzete"
+)
+
+# A nyolc vizsgált topik ugyanazt a színt kapja, mint a közös ábrán; a többi kék
+VIZSGALT_SZINEK <- c("2" = "orange", "5" = "black", "7" = "blue", "10" = "#FF1493",
+                     "15" = "purple", "16" = "brown", "18" = "grey40", "26" = "#00C46A")
+ALAP_SZIN <- "steelblue"
+
+# A pandémia időszakai (ugyanazok, mint a CDA-mintavételnél)
+IDOSZAKOK <- data.table(
+  nev    = c("2. hullám", "3. hullám", "Nyári enyhítés", "4. hullám"),
+  kezdet = as.Date(c("2020-09-01", "2021-02-01", "2021-06-01", "2021-09-01")),
+  veg    = as.Date(c("2021-01-31", "2021-05-31", "2021-08-31", "2022-01-07"))
+)
+
+dir.create(KIMENET_MAPPA, showWarnings = FALSE, recursive = TRUE)
+
+##########################
+#1. Hatásbecslés betöltése
+##########################
+
+hatas <- readRDS(file.path(EREDMENY_MAPPA, "hatas_becsles_K30.rds"))
+
+# Az összes kért topik görbéje egyszerre (a forrás a leggyakoribb kategórián, a hírportálon marad)
+becsles <- plot(hatas, covariate = "datum_num", topics = ABRAZOLT_TOPIKOK,
+                method = "continuous", omit.plot = TRUE)
+datumok <- as.Date(becsles$x, origin = "1970-01-01")
+honapok <- seq(as.Date(format(min(datumok), "%Y-%m-01")), max(datumok), by = "month")
+
+##########################
+#2. Ábrák topikonként    #
+##########################
+
+for (i in seq_along(ABRAZOLT_TOPIKOK)) {
+  k <- ABRAZOLT_TOPIKOK[i]
+  szin <- if (as.character(k) %in% names(VIZSGALT_SZINEK)) VIZSGALT_SZINEK[[as.character(k)]] else ALAP_SZIN
+
+  # Százalékban ábrázoljuk
+  kozep <- 100 * becsles$means[[i]]
+  also  <- 100 * becsles$ci[[i]][1, ]
+  felso <- 100 * becsles$ci[[i]][2, ]
+
+  png(file.path(KIMENET_MAPPA, sprintf("T%02d_idoben.png", k)),
+      width = 2400, height = 1200, res = 200)
+  par(mar = c(6, 5, 5, 2), family = "serif")
+
+  plot(NA, xlim = range(datumok), ylim = c(0, max(felso) * 1.12),
+       xaxt = "n", xlab = "", ylab = "Téma várható aránya (%)",
+       main = sprintf("T%d – %s", k, TOPIK_NEVEK[k]), cex.main = 1.3)
+
+  # Időszakok halvány sávokkal és felirattal
+  for (j in seq_len(nrow(IDOSZAKOK))) {
+    if (j %% 2 == 1) rect(IDOSZAKOK$kezdet[j], par("usr")[3], IDOSZAKOK$veg[j], par("usr")[4],
+                          col = "grey95", border = NA)
+    text(IDOSZAKOK$kezdet[j] + as.numeric(IDOSZAKOK$veg[j] - IDOSZAKOK$kezdet[j]) / 2,
+         par("usr")[4] * 0.97, IDOSZAKOK$nev[j], cex = 0.85, col = "grey40")
+  }
+
+  axis(1, at = honapok, labels = format(honapok, "%Y-%m"), las = 2, cex.axis = 0.8)
+  abline(v = honapok, col = "grey90", lwd = 0.5)
+
+  polygon(c(datumok, rev(datumok)), c(also, rev(felso)),
+          col = adjustcolor(szin, 0.2), border = NA)
+  lines(datumok, kozep, col = szin, lwd = 3)
+  box()
+
+  dev.off()
+  message("Mentve: ", sprintf("T%02d_idoben.png", k))
+}
+
+message("Kész. Az ábrák helye: ", KIMENET_MAPPA)
+
+##########################################
+#3. Közös ábra a nyolc topikról (3. ábra)#
+##########################################
+
+# Ugyanaz az ábra, mint a teljes futtatási szkript 9.1 lépésében, de a mentett
+# hatásbecslésből, így a modellt nem kell újra betölteni. Az idősort is
+# elmenti (idosor_becslesek.csv), ebből olvashatók ki a 4.1 számai.
+ido_becsles <- plot(hatas, covariate = "datum_num", topics = VIZSGALT_TOPIKOK,
+                    method = "continuous", omit.plot = TRUE)
+
+idosor <- rbindlist(lapply(seq_along(VIZSGALT_TOPIKOK), function(i) {
+  data.table(topik = VIZSGALT_TOPIKOK[i],
+             datum = as.Date(ido_becsles$x, origin = "1970-01-01"),
+             becsles = ido_becsles$means[[i]],
+             also = ido_becsles$ci[[i]][1, ],
+             felso = ido_becsles$ci[[i]][2, ])
+}))
+fwrite(idosor, file.path(EREDMENY_MAPPA, "idosor_becslesek.csv"))
+
+kozos_szinek <- VIZSGALT_SZINEK[as.character(VIZSGALT_TOPIKOK)]
+
+png(file.path(EREDMENY_MAPPA, "topikok_idoben.png"), width = 2400, height = 1200, res = 150)
+par(mar = c(6, 6, 4, 12), xpd = FALSE)
+plot(NA, xlim = range(idosor$datum), ylim = c(0, max(idosor$felso)),
+     xaxt = "n", xlab = "", ylab = "Téma várható aránya",
+     main = "Témák változása az időben")
+axis(1, at = honapok, labels = format(honapok, "%Y-%m"), las = 2, cex.axis = 0.8)
+abline(v = honapok, col = "grey92")
+for (i in seq_along(VIZSGALT_TOPIKOK)) {
+  d <- idosor[topik == VIZSGALT_TOPIKOK[i]]
+  polygon(c(d$datum, rev(d$datum)), c(d$also, rev(d$felso)),
+          col = adjustcolor(kozos_szinek[i], 0.2), border = NA)
+  lines(d$datum, d$becsles, col = kozos_szinek[i], lwd = 3)
+}
+par(xpd = TRUE)
+legend("topright", inset = c(-0.12, 0), legend = paste("Topik", VIZSGALT_TOPIKOK),
+       col = kozos_szinek, lwd = 3, bty = "n")
+dev.off()
+message("Mentve: topikok_idoben.png")

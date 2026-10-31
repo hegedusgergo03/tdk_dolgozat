@@ -1,0 +1,207 @@
+# Konvergált-e a modell? Ha nem, a MAX_EM_ITERACIO növelése szükséges, és ezt
+# a dolgozatban jelezni kell.
+konvergalt <- isTRUE(modell$convergence$converged)
+message("Konvergált: ", konvergalt, " | iterációk: ", length(modell$convergence$bound))
+if (!konvergalt) warning("A modell nem konvergált a megadott iterációszámon belül!")
+
+png(utvonal("konvergencia.png"), width = 1400, height = 900, res = 150)
+plot(modell$convergence$bound, type = "l",
+     xlab = "EM-iteráció", ylab = "Lower bound", main = "A modell konvergenciája")
+dev.off()
+
+# Topikonként: legvalószínűbb (Highest Prob) és FREX szavak, prevalencia,
+# koherencia, exkluzivitás. Ez a topikcímkézés dokumentált alapja.
+szavak <- labelTopics(modell, n = 20)
+topik_tabla <- data.table(
+  topik             = seq_len(VEGSO_K),
+  prevalencia       = colMeans(modell$theta),
+  koherencia        = semanticCoherence(modell, stm_adatok$documents),
+  exkluzivitas      = exclusivity(modell),
+  highest_prob      = apply(szavak$prob, 1, paste, collapse = ", "),
+  frex              = apply(szavak$frex, 1, paste, collapse = ", "),
+  cimke             = ""            # a kézi topikcímkéket ide kell beírni
+)
+fwrite(topik_tabla, utvonal("topikok_szavak.csv"), bom = TRUE)
+
+png(utvonal("topikok_megoszlasa.png"), width = 2000, height = 1400, res = 150)
+plot(modell, type = "summary", n = 5, main = "Témák megoszlása a korpuszban")
+dev.off()
+
+# Topikonként 5 jellemző dokumentum a címkézéshez (minden topikra)
+cimkezo_dokumentumok <- rbindlist(lapply(seq_len(VEGSO_K), function(k) {
+  sorrend <- order(modell$theta[, k], decreasing = TRUE)[1:5]
+  data.table(topik = k, id = meta$id[sorrend], theta = modell$theta[sorrend, k])
+}))
+cimkezo_dokumentumok <- merge(cimkezo_dokumentumok,
+                              szovegek_betolt(cimkezo_dokumentumok$id),
+                              by = "id", sort = FALSE)
+fwrite(cimkezo_dokumentumok[order(topik, -theta)], utvonal("topikok_cimkezeshez.csv"), bom = TRUE)
+
+##############################################
+#9. Hatásbecslés: idő és forrás              #
+##############################################
+
+hatas <- gyorsitotar(sprintf("hatas_becsles_K%d.rds", VEGSO_K), {
+  estimateEffect(formula     = 1:VEGSO_K ~ s(datum_num) + forras,
+                 stmobj      = modell,
+                 metadata    = stm_adatok$meta,
+                 uncertainty = "Global")
+})
+
+saveRDS(hatas, file = "hatas.rds")
+hatas <- readRDS("hatas.rds")
+stm_adatok<-readRDS("stm_bemenet.rds")
+
+# 9.1 Időbeli változás. A görbéket a plot.estimateEffect számolja ki
+# (omit.plot = TRUE), a rajzolást mi végezzük, hogy a dátumtengely havi
+# bontású és pontos legyen. A forrást az stm a leggyakoribb kategórián tartja
+# (ez a hírportál), a forrás szerinti eltolódásokat a 9.2 mutatja.
+ido_becsles <- plot(hatas, covariate = "datum_num", topics = VIZSGALT_TOPIKOK,
+                    model = modell, method = "continuous", omit.plot = TRUE)
+
+idosor <- rbindlist(lapply(seq_along(VIZSGALT_TOPIKOK), function(i) {
+  data.table(topik = VIZSGALT_TOPIKOK[i],
+             datum = as.Date(ido_becsles$x, origin = "1970-01-01"),
+             becsles = ido_becsles$means[[i]],
+             also = ido_becsles$ci[[i]][1, ],
+             felso = ido_becsles$ci[[i]][2, ])
+}))
+fwrite(idosor, utvonal("idosor_becslesek.csv"))
+
+honapok <- seq(as.Date(format(min(idosor$datum), "%Y-%m-01")),
+               max(idosor$datum), by = "month")
+
+png(utvonal("topikok_idoben.png"), width = 2400, height = 1200, res = 150)
+par(mar = c(6, 6, 4, 12), xpd = FALSE)
+plot(NA, xlim = range(idosor$datum), ylim = c(0, max(idosor$felso)),
+     xaxt = "n", xlab = "", ylab = "Téma várható aránya",
+     main = "Témák változása az időben")
+axis(1, at = honapok, labels = format(honapok, "%Y-%m"), las = 2, cex.axis = 0.8)
+abline(v = honapok, col = "grey92")
+for (i in seq_along(VIZSGALT_TOPIKOK)) {
+  d <- idosor[topik == VIZSGALT_TOPIKOK[i]]
+  polygon(c(d$datum, rev(d$datum)), c(d$also, rev(d$felso)),
+          col = adjustcolor(TOPIK_SZINEK[i], 0.2), border = NA)
+  lines(d$datum, d$becsles, col = TOPIK_SZINEK[i], lwd = 3)
+}
+par(xpd = TRUE)
+legend("topright", inset = c(-0.12, 0), legend = paste("Topik", VIZSGALT_TOPIKOK),
+       col = TOPIK_SZINEK[seq_along(VIZSGALT_TOPIKOK)], lwd = 3, bty = "n")
+dev.off()
+
+# 9.2 Forrás szerinti különbségek (pontbecslés + 95%-os CI)
+forras_becsles <- plot(hatas, covariate = "forras", topics = VIZSGALT_TOPIKOK,
+                       model = modell, method = "pointestimate", omit.plot = TRUE)
+# A becslések sorrendje az adatban előforduló sorrendet (uvals) követi, nem a
+# faktorszinteket, ezért a forrás nevét az uvals-ból vesszük.
+forras_tabla <- rbindlist(lapply(seq_along(VIZSGALT_TOPIKOK), function(i) {
+  data.table(topik = VIZSGALT_TOPIKOK[i],
+             forras = factor(as.character(forras_becsles$uvals),
+                             levels = levels(stm_adatok$meta$forras)),
+             becsles = forras_becsles$means[[i]],
+             also = forras_becsles$cis[[i]][1, ],
+             felso = forras_becsles$cis[[i]][2, ])
+}))
+setorder(forras_tabla, topik, forras)
+fwrite(forras_tabla, utvonal("forras_becslesek.csv"))
+
+# Csak a valóban jelen lévő forrásokat ábrázoljuk
+jelen_levo <- levels(droplevels(stm_adatok$meta$forras))
+png(utvonal("topikok_forras_szerint.png"), width = 2000, height = 1200, res = 150)
+par(mfrow = c(1, length(VIZSGALT_TOPIKOK)), mar = c(8, 4, 3, 1))
+for (t in VIZSGALT_TOPIKOK) {
+  d <- forras_tabla[topik == t & forras %in% jelen_levo]
+  plot(seq_len(nrow(d)), d$becsles, ylim = range(c(d$also, d$felso)), pch = 19,
+       xaxt = "n", xlab = "", ylab = "Téma várható aránya", main = paste("Topik", t))
+  arrows(seq_len(nrow(d)), d$also, seq_len(nrow(d)), d$felso,
+         angle = 90, code = 3, length = 0.04)
+  axis(1, at = seq_len(nrow(d)), labels = d$forras, las = 2)
+}
+dev.off()
+
+# 9.3 Regressziós együtthatók táblázata (a dolgozat függelékébe)
+sink(utvonal("hatas_becsles_osszefoglalo.txt"))
+print(summary(hatas, topics = VIZSGALT_TOPIKOK))
+sink()
+
+######################################################################
+#10. Reprezentatív dokumentumok a CDA-hoz (rétegzett kiválasztás)    #
+######################################################################
+
+# Topikonként és időszakonként a legmagasabb theta-értékű, legalább CDA_MIN_SZO
+# hosszú dokumentumok. Így a CDA a 3. kutatási kérdéshez (időbeli változás) is
+# ad anyagot, és nem csak a csúcsidőszak szövegeit elemezzük.
+meta[, idoszak := IDOSZAKOK$idoszak[findInterval(as.Date(datum_num, origin = "1970-01-01"),
+                                                 IDOSZAKOK$kezdet)]]
+meta[, sor := .I]
+
+cda_minta <- rbindlist(lapply(VIZSGALT_TOPIKOK, function(k) {
+  jelolt <- meta[szoszam >= CDA_MIN_SZO, .(sor, id, idoszak, forras, domain, link, datum_num)]
+  jelolt[, theta := modell$theta[sor, k]]
+  jelolt[, topik := k]
+  jelolt[order(-theta), head(.SD, CDA_DOK_PER_CELLA), by = idoszak]
+}))
+cda_minta[, datum := as.Date(datum_num, origin = "1970-01-01")]
+
+# Kiegészítésként forrás szerinti bontás is (hírportál vs. közösségi média):
+# a bizalmatlanság/ellen-magatartás összevetéséhez (2. kutatási kérdés)
+cda_forras <- rbindlist(lapply(VIZSGALT_TOPIKOK, function(k) {
+  jelolt <- meta[szoszam >= CDA_MIN_SZO, .(sor, id, idoszak, forras, domain, link, datum_num)]
+  jelolt[, theta := modell$theta[sor, k]]
+  jelolt[, topik := k]
+  jelolt[order(-theta), head(.SD, CDA_DOK_PER_CELLA), by = forras]
+}))
+
+# A két minta szövegei egyetlen betöltéssel
+cda_szovegek <- szovegek_betolt(unique(c(cda_minta$id, cda_forras$id)))
+
+cda_minta <- merge(cda_minta, cda_szovegek, by = "id", sort = FALSE)
+setorder(cda_minta, topik, idoszak, -theta)
+fwrite(cda_minta[, .(topik, idoszak, datum, forras, domain, theta, link, id, szoveg)],
+       utvonal("cda_minta_retegzett.csv"), bom = TRUE)
+
+cda_forras <- merge(cda_forras, cda_szovegek, by = "id", sort = FALSE)
+setorder(cda_forras, topik, forras, -theta)
+fwrite(cda_forras[, .(topik, forras, idoszak, datum = as.Date(datum_num, origin = "1970-01-01"),
+                      domain, theta, link, id, szoveg)],
+       utvonal("cda_minta_forras_szerint.csv"), bom = TRUE)
+rm(cda_szovegek); gc()
+
+##########################################
+#11. Topikkorrelációs háló               #
+##########################################
+
+korrelaciok <- topicCorr(modell, method = "simple", cutoff = 0.05)
+
+halo <- graph_from_adjacency_matrix(korrelaciok$posadj, mode = "undirected", diag = FALSE)
+V(halo)$label <- paste0("T", seq_len(VEGSO_K))
+V(halo)$color <- ifelse(seq_len(VEGSO_K) %in% VIZSGALT_TOPIKOK, "#FFB347", "#D9E4F5")
+
+set.seed(SEED)
+png(utvonal("topikkorrelacios_halo.png"), width = 1800, height = 1800, res = 150)
+plot(halo, vertex.size = 12, vertex.label.cex = 0.9, vertex.label.color = "black",
+     main = "Topikok közötti pozitív korrelációk (cutoff = 0,05)")
+dev.off()
+
+el <- which(upper.tri(korrelaciok$posadj) & korrelaciok$posadj == 1, arr.ind = TRUE)
+fwrite(data.table(topik1 = el[, 1], topik2 = el[, 2], korrelacio = korrelaciok$cor[el]),
+       utvonal("topikkorrelaciok.csv"))
+
+##########################################
+#12. Futtatási környezet mentése         #
+##########################################
+
+# A reprodukálhatósághoz: csomagverziók és a használt paraméterek
+sink(utvonal("futtatasi_kornyezet.txt"))
+cat("Futtatás ideje:", format(Sys.time()), "\n")
+cat("SEED:", SEED, "| K:", VEGSO_K, "| MIN_SZO:", MIN_SZO,
+    "| PREFIX_HOSSZ:", PREFIX_HOSSZ, "| MIN_DOKFREKV:", MIN_DOKFREKV,
+    "| MAX_EM_ITERACIO:", MAX_EM_ITERACIO, "| DARAB_MERET:", DARAB_MERET, "\n")
+cat("Időszak:", format(DATUM_KEZDET), "-", format(DATUM_VEG), "\n")
+cat("Konvergált:", konvergalt, "\n\n")
+print(szuresi_naplo)
+cat("\n")
+print(sessionInfo())
+sink()
+
+message("Kész. Kimenetek: ", EREDMENY_MAPPA)

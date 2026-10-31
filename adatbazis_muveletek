@@ -1,0 +1,343 @@
+
+##################
+
+NYERS_CSV      <- "C:/Users/Gergő/Desktop/sentione_oltas.csv"
+EREDMENY_MAPPA <- "C:/Users/Gergő/Desktop/EKÖP/STM/STM_eles_futtatas"
+
+# TRUE: a mentett köztes eredményeket is újraszámolja
+UJRASZAMOL <- FALSE
+
+SEED <- 42
+
+# Ennyi dokumentumonként dolgozza fel a szkript a szövegeket. Kevesebb RAM
+# esetén kisebb (pl. 15000), több RAM esetén nagyobb érték is lehet.
+DARAB_MERET <- 25000
+
+# Vizsgált időszak (a dátumok budapesti idő szerint értendők)
+DATUM_KEZDET <- as.Date("2020-09-01")
+DATUM_VEG    <- as.Date("2022-01-07")
+
+# Minimális szöveghossz szavakban (a stop-szó szűrés ELŐTT számolva)
+MIN_SZO <- 20
+
+# Közel-duplikátumok: ha két normalizált szöveg első PREFIX_HOSSZ karaktere
+# megegyezik, ugyanannak a szövegnek tekintjük (pl. MTI-átvételek, aggregátorok,
+# csonkolt leadek). 0 = csak a teljes szöveg egyezését szűrjük (ez sokkal
+# több memóriát igényel).
+PREFIX_HOSSZ <- 200
+
+# Ritka szavak alsó küszöbe: az ennél kevesebb dokumentumban előforduló szavak
+# kiesnek (Denny és Spirling, 2018). Felső küszöb nincs.
+MIN_DOKFREKV <- 10
+
+# Kiegészítő magyar stop-szavak: kizárólag grammatikai funkciószavak, amelyek a
+# snowball listából hiányoznak. Tartalmas szó (pl. "mondta") NEM kerülhet ide,
+# mert az már korpusz-specifikus szűrés lenne (Schofield és mtsai., 2017).
+KIEGESZITO_STOP_HU <- c("is", "ha", "miatt", "illetve", "sem", "pl", "stb")
+
+# Árva ragtöredékek: a SentiOne-export a számokat és a kötőjeleket már eleve
+# kivette a szövegből ("1957-ben" -> "ben", "NATO-ban" -> "NATO ban"), így ezek
+# önálló tokenként maradnak. Csak olyan alakok szerepelnek itt, amelyek
+# önállóan nem magyar szavak (pl. a "hoz" vagy a "kor" ezért NINCS a listán).
+RAG_TOREDEKEK <- c("ben", "ban", "ba", "ra", "re", "ról", "ről", "ból", "ből",
+                   "tól", "től", "nak", "nek", "val", "vel", "nál", "nél",
+                   "án", "én", "ön", "en", "es", "os", "ös", "ig", "ként",
+                   "ai", "ei", "jai", "jei", "tel", "tal", "szor", "szer")
+
+# Témaszám-keresés: két jelölt, a végső K-t a 6. lépés automatikusan választja
+# (a 30-at, ha az illeszkedése jobb).
+K_JELOLTEK      <- c(20, 30)
+SEARCHK_ARANY   <- 0.10   # a korpusz ekkora véletlen mintáján fut a searchK
+SEARCHK_MAGOK   <- 1      # Windows-on csak 1 működik; Linux/Mac gépen lehet több
+MAX_EM_ITERACIO <- 100
+
+# Az elemzendő topikok sorszáma. FIGYELEM: az új modellben a topikok sorszáma
+# más lesz, ezt a 8. lépés kimenetei (topikok_szavak.csv,
+# topikok_cimkezeshez.csv) alapján újra be kell állítani, majd a szkriptet
+# újra lefuttatni: a modell ekkor már a mentésből töltődik be, csak a
+# 9–11. lépés számolódik újra.
+VIZSGALT_TOPIKOK <- c(2,5,7,10,15,16,18,26)
+
+# Időszakok a CDA rétegzett mintavételéhez. A határokat szakirodalmi
+# forrással (pl. NNGYK/KSH hullámhatárok) alá kell támasztani a dolgozatban.
+IDOSZAKOK <- data.table(
+  idoszak = c("1_masodik_hullam", "2_harmadik_hullam", "3_nyari_enyhites", "4_negyedik_hullam"),
+  kezdet  = as.Date(c("2020-09-01", "2021-02-01", "2021-06-01", "2021-09-01")),
+  veg     = as.Date(c("2021-01-31", "2021-05-31", "2021-08-31", "2022-01-07"))
+)
+CDA_DOK_PER_CELLA <- 3     # topikonként x időszakonként ennyi dokumentum
+CDA_MIN_SZO       <- 50    # a CDA-hoz csak érdemben elemezhető hosszúságú szöveg
+
+TOPIK_SZINEK <- c("orange", "black", "blue", "#FF1493",
+                  "purple", "brown", "grey40", "#00C46A")
+
+dir.create(EREDMENY_MAPPA, showWarnings = FALSE, recursive = TRUE)
+utvonal <- function(fajlnev) file.path(EREDMENY_MAPPA, fajlnev)
+
+# Köztes eredmény mentése/betöltése: ha a fájl létezik, betölti, különben
+# kiszámolja a kifejezést és elmenti.
+gyorsitotar <- function(fajlnev, kifejezes) {
+  f <- utvonal(fajlnev)
+  if (file.exists(f) && !UJRASZAMOL) {
+    message("Betöltés: ", f)
+    return(readRDS(f))
+  }
+  eredmeny <- kifejezes
+  saveRDS(eredmeny, f)
+  eredmeny
+}
+
+# A teljes szövegek csak a megadott azonosítókra töltődnek vissza, így a
+# memóriában mindig csak a ténylegesen szükséges szövegek vannak.
+szovegek_betolt <- function(azonositok = NULL) {
+  s <- readRDS(utvonal("szovegek.rds"))
+  if (!is.null(azonositok)) s <- s[id %in% azonositok]
+  gc()
+  s
+}
+
+# A sorokat DARAB_MERET méretű darabokra osztja (indexvektorok listája)
+darabolas <- function(n) split(seq_len(n), ceiling(seq_len(n) / DARAB_MERET))
+
+quanteda_options(threads = max(1, parallel::detectCores() - 1))
+set.seed(SEED)
+
+# A szűrések naplója: minden lépés után ide kerül a megmaradt dokumentumszám,
+# ebből készül a dolgozat módszertani táblázata.
+szuresi_naplo <- data.table(lepes = character(), dokumentum = integer())
+naplo <- function(lepes, n) {
+  szuresi_naplo <<- rbind(szuresi_naplo, data.table(lepes = lepes, dokumentum = n))
+  message(sprintf("%-45s %9d", lepes, n))
+}
+
+##########################
+#1. Adatok betöltése     #
+##########################
+
+# Csak a szükséges oszlopokat olvassuk be (gyorsabb, kevesebb memória)
+adat <- fread(NYERS_CSV,
+              select = c("id", "created", "domain", "Content of posts",
+                         "Link to the source", "content_type", "social_type"),
+              encoding = "UTF-8")
+setnames(adat, c("Content of posts", "Link to the source"), c("szoveg", "link"))
+naplo("Nyers adatbázis", nrow(adat))
+
+################################################
+#2. Metaadatok: dátum és forrás kategória      #
+################################################
+
+# A SentiOne UTC-ben adja meg az időt ("Z"), a napi besoroláshoz budapesti
+# időre váltunk (különben az éjfél körüli cikkek rossz napra kerülnek).
+adat[, ido := as.POSIXct(created, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")]
+adat[, datum := as.Date(format(ido, tz = "Europe/Budapest"))]
+adat[, datum_num := as.numeric(datum)]
+
+# Forrás kategória. A content_type == 1 & social_type == 99 kód a SentiOne-ban
+# a webes (nem közösségimédia-) forrásokat jelöli: hírportálok, online lapok,
+# de blogok és helyi portálok is. Ezeket gyűjtően "hirportal"-nak nevezzük.
+adat[, forras := fcase(
+  domain == "facebook.com",                 "facebook",
+  domain == "twitter.com",                  "twitter",
+  domain == "youtube.com",                  "youtube",
+  domain == "instagram.com",                "instagram",
+  content_type == 1 & social_type == 99,    "hirportal",
+  default = "egyeb"
+)]
+# A hírportál a referenciakategória: a többi forrás hatása ehhez viszonyítva értelmezhető
+adat[, forras := factor(forras, levels = c("hirportal", "facebook", "twitter",
+                                           "youtube", "instagram", "egyeb"))]
+adat[, c("created", "ido", "content_type", "social_type") := NULL]
+
+message("Forrásmegoszlás a nyers adatban:")
+print(adat[, .N, by = forras][order(-N)])
+
+##########################
+#3. Tisztítás            #
+##########################
+
+# 3.1 Üres szövegek
+adat <- adat[!is.na(szoveg) & nzchar(stri_trim_both(szoveg))]
+naplo("Üres szövegek nélkül", nrow(adat))
+
+# 3.2 Időszak
+adat <- adat[!is.na(datum) & datum >= DATUM_KEZDET & datum <= DATUM_VEG]
+naplo("Vizsgált időszakon belül", nrow(adat))
+
+# 3.3 Duplikátumszűrés.
+# Normalizált alak: kisbetű, csak betűk és számok, egyszeres szóközök. Így a
+# központozásban/szóközökben eltérő másolatok is egyezőnek számítanak.
+# A normalizált szöveget darabonként számoljuk, és csak a szószámot és a
+# duplikátumkulcsot (az első PREFIX_HOSSZ karaktert) tartjuk meg belőle.
+normalizal <- function(x) {
+  x <- stri_trans_tolower(x)
+  x <- stri_replace_all_regex(x, "https?://\\S+|www\\.\\S+", " ")
+  x <- stri_replace_all_regex(x, "[^\\p{L}\\p{N}]+", " ")
+  stri_trim_both(x)
+}
+
+adat[, `:=`(szoszam = NA_integer_, dup_kulcs = NA_character_)]
+for (sorok in darabolas(nrow(adat))) {
+  norm <- normalizal(adat$szoveg[sorok])
+  set(adat, i = sorok, j = "szoszam", value = stri_count_words(norm))
+  set(adat, i = sorok, j = "dup_kulcs",
+      value = if (PREFIX_HOSSZ > 0) stri_sub(norm, 1, PREFIX_HOSSZ) else norm)
+}
+rm(norm); gc()
+
+# Időrendbe rendezünk, hogy minden másolatcsoportból a legkorábbi (az eredeti)
+# példány maradjon meg. A másolatok számát megtartjuk metaadatként, mert a
+# szöveg terjedését (elérését) jelzi.
+setorder(adat, datum, id)
+adat[, masolatok_szama := .N, by = dup_kulcs]
+
+message("Duplikátumok forrásonként (törlendő másolatok):")
+print(adat[duplicated(dup_kulcs), .N, by = forras][order(-N)])
+
+adat <- adat[!duplicated(dup_kulcs)]
+naplo("Duplikátumok nélkül", nrow(adat))
+
+# 3.4 Minimális hossz
+message("A MIN_SZO alatti szövegek forrásonként:")
+print(adat[szoszam < MIN_SZO, .N, by = forras][order(-N)])
+adat <- adat[szoszam >= MIN_SZO]
+naplo(sprintf("Legalább %d szavas szövegek", MIN_SZO), nrow(adat))
+
+adat[, dup_kulcs := NULL]; gc()
+
+# A szövegeket külön, az azonosítóval együtt mentjük: ebből készül a
+# letisztított CSV és a CDA-s kiválasztás, így a szöveg és a modell sorai
+# biztosan egyeznek. A memóriában nem tartjuk, csak szükség esetén töltjük be.
+saveRDS(adat[, .(id, szoveg)], utvonal("szovegek.rds"))
+
+# Metaadatok szöveg nélkül (ezek kerülnek az STM-be)
+meta_tabla <- adat[, !"szoveg"]
+
+##############################################################
+#4–5. Tokenizálás, stop-szó szűrés és DFM darabonként        #
+##############################################################
+
+stm_adatok <- gyorsitotar("stm_bemenet.rds", {
+
+  # Standard magyar és angol stop-szó lista (snowball) + grammatikai kiegészítés.
+  # Az angol lista azért kell, mert a korpuszban angol nyelvű posztok és
+  # idézetek is vannak.
+  stop_szavak <- unique(c(stopwords("hu", source = "snowball"),
+                          stopwords("en", source = "snowball"),
+                          KIEGESZITO_STOP_HU))
+
+  darab_mappa <- utvonal("dfm_darabok")
+  dir.create(darab_mappa, showWarnings = FALSE)
+  darabok <- darabolas(nrow(adat))
+
+  # 1. menet: minden darabból DFM készül (lemezre mentve), közben összeadjuk a
+  # szavak dokumentum-gyakoriságát (hány dokumentumban fordulnak elő).
+  dokfrekv <- data.table(szo = character(), n = numeric())
+
+  for (d in seq_along(darabok)) {
+    message(sprintf("Tokenizálás: %d. darab / %d", d, length(darabok)))
+    sorok <- darabok[[d]]
+
+    # Számhoz kötőjellel kapcsolt ragok (pl. "2021-ben", "18-án", "60%-a"): a
+    # számok eltávolítása után különben "ben", "án", "a" töredékek maradnának
+    szoveg <- stri_replace_all_regex(adat$szoveg[sorok],
+                                     "\\d+(?:[.,]\\d+)*\\s*%?-\\p{L}+", " ")
+    names(szoveg) <- adat$id[sorok]
+
+    toks <- tokens(szoveg,
+                   remove_punct   = TRUE,
+                   remove_numbers = TRUE,
+                   remove_url     = TRUE,
+                   remove_symbols = TRUE)
+    rm(szoveg)
+
+    toks <- tokens_tolower(toks)
+
+    # Twitter/Instagram felhasználónevek (@nev): nem tartalmi elemek
+    toks <- tokens_remove(toks, pattern = "@*")
+
+    toks <- tokens_remove(toks, pattern = stop_szavak, valuetype = "fixed")
+
+    # Tokenizálási műtermékek, nem tartalmi szűrés (lásd RAG_TOREDEKEK)
+    toks <- tokens_remove(toks, pattern = RAG_TOREDEKEK, valuetype = "fixed")
+
+    # Egybetűs maradványok (pl. a tokenizálás után megmaradt "s", "e") eltávolítása
+    toks <- tokens_select(toks, min_nchar = 2)
+
+    # Szótövesítés szándékosan NINCS (Schofield és Mimno, 2016)
+
+    darab_dfm <- dfm(toks)
+    rm(toks)
+
+    df <- docfreq(darab_dfm)
+    dokfrekv <- rbind(dokfrekv, data.table(szo = names(df), n = as.numeric(df)))
+    dokfrekv <- dokfrekv[, .(n = sum(n)), by = szo]
+
+    saveRDS(darab_dfm, file.path(darab_mappa, sprintf("darab_%03d.rds", d)))
+    rm(darab_dfm, df); gc()
+  }
+
+  rm(adat, envir = globalenv()); gc()   # a szövegek innentől nem kellenek
+  message("Különböző szóalakok összesen: ", nrow(dokfrekv))
+
+  # Ritka szavak kiszűrése: a MIN_DOKFREKV-nél kevesebb dokumentumban előforduló
+  # szavak (elírások, ritka tulajdonnevek és ragozott alakok) az együttes
+  # előfordulási mintázatokhoz érdemben nem járulnak hozzá, viszont a
+  # szókészletet és a futásidőt nagyságrendekkel növelnék. Felső küszöb
+  # szándékosan nincs, a gyakori szavak mind bent maradnak.
+  szokeszlet <- sort(dokfrekv[n >= MIN_DOKFREKV, szo])
+  message("Szókészlet a ritka szavak kiszűrése után: ", length(szokeszlet))
+  rm(dokfrekv); gc()
+
+  # 2. menet: minden darab DFM-jét a közös szókészletre igazítjuk (azonos
+  # oszlopok, azonos sorrend), majd összefűzzük.
+  igazitott <- vector("list", length(darabok))
+  for (d in seq_along(darabok)) {
+    message(sprintf("Összefűzés: %d. darab / %d", d, length(darabok)))
+    darab_dfm <- readRDS(file.path(darab_mappa, sprintf("darab_%03d.rds", d)))
+    igazitott[[d]] <- dfm_match(darab_dfm, features = szokeszlet)
+    rm(darab_dfm); gc()
+  }
+  szoveg_dfm <- do.call(rbind, igazitott)
+  rm(igazitott); gc()
+
+  # A szűrés után üresen maradt dokumentumok elhagyása
+  szoveg_dfm <- dfm_subset(szoveg_dfm, ntoken(szoveg_dfm) > 0)
+
+  # Biztonsági lépés: csak a ténylegesen előforduló szavak maradjanak
+  szoveg_dfm <- dfm_trim(szoveg_dfm, min_termfreq = 1)
+
+  stm_nyers <- convert(szoveg_dfm, to = "stm")
+  azonositok <- docnames(szoveg_dfm)
+  rm(szoveg_dfm); gc()
+
+  # Metaadatok hozzárendelése azonosító alapján (a modell sorrendjében)
+  stm_nyers$meta <- as.data.frame(meta_tabla[match(azonositok, id)])
+  stopifnot(identical(stm_nyers$meta$id, azonositok))
+
+  unlink(darab_mappa, recursive = TRUE)   # a darabokra már nincs szükség
+  stm_nyers
+})
+
+if (exists("adat")) { rm(adat); gc() }
+rm(meta_tabla); gc()
+
+naplo("STM bemenet (tokenizálás után)", length(stm_adatok$documents))
+message("Szókészlet mérete: ", length(stm_adatok$vocab))
+message("Tokenek száma: ", sum(vapply(stm_adatok$documents, function(d) sum(d[2, ]), numeric(1))))
+
+fwrite(szuresi_naplo, utvonal("szuresi_naplo.csv"))
+fwrite(as.data.table(stm_adatok$meta)[, .N, by = forras][order(-N)],
+       utvonal("forrasmegoszlas_vegso.csv"))
+
+meta <- as.data.table(stm_adatok$meta)
+
+# A letisztított SentiOne-adatbázis: pontosan azok a dokumentumok, ugyanabban a
+# sorrendben, amelyeken a modell fut (a modell i. sora = a fájl i. sora).
+if (!file.exists(utvonal("sentione_oltas_tisztitott.csv")) || UJRASZAMOL) {
+  tisztitott_csv <- merge(meta[, .(sor = .I, id, datum, forras, domain, link,
+                                   szoszam, masolatok_szama)],
+                          szovegek_betolt(meta$id), by = "id", sort = FALSE)
+  setorder(tisztitott_csv, sor)
+  fwrite(tisztitott_csv[, !"sor"], utvonal("sentione_oltas_tisztitott.csv"), bom = TRUE)
+  rm(tisztitott_csv); gc()
+}

@@ -1,0 +1,483 @@
+png("1_tablazat_forrasmegoszlas_A4.png", width = 2520, height = 1500, res = 400)
+
+par(mar = c(0.2, 0.2, 0.2, 0.2), family = "serif")
+
+plot(NULL, xlim = c(0, 10), ylim = c(0, 6.6), axes = FALSE, xlab = "", ylab = "")
+
+forrasok   <- c("Hírportál", "Facebook", "Twitter", "YouTube", "Instagram", "Egyéb", "Összesen")
+dokumentum <- c("292 607", "104 927", "23 574", "857", "455", "12", "422 432")
+arany      <- c("69,3%", "24,8%", "5,6%", "0,2%", "0,1%", "<0,01%", "100%")
+
+# Fejléc háttere és szövege
+rect(0, 5.70, 10, 6.50, col = "#EAEFF5", border = NA)
+text(0.35, 6.10, "Forrás", font = 2, cex = 0.95, adj = c(0, 0.5))
+text(5.50, 6.10, "Dokumentum", font = 2, cex = 0.95, adj = c(0.5, 0.5))
+text(8.50, 6.10, "Arány", font = 2, cex = 0.95, adj = c(0.5, 0.5))
+
+# Sorok kirajzolása
+for (i in 1:7) {
+  y_top <- 5.70 - (i - 1) * 0.80
+  y_bot <- y_top - 0.80
+  y_mid <- (y_top + y_bot) / 2
+  
+  if (i %% 2 == 1) {
+    rect(0, y_bot, 4.0, y_top, col = "#DCE8F7", border = NA)
+    rect(4.0, y_bot, 10, y_top, col = "#F9FBFD", border = NA)
+  } else {
+    rect(0, y_bot, 4.0, y_top, col = "#EDF3FA", border = NA)
+    rect(4.0, y_bot, 10, y_top, col = "#FFFFFF", border = NA)
+  }
+  
+  # Az összesítő sor számai félkövérek, a többi soré normál betűs
+  betu_szam <- if (i == 7) 2 else 1
+  
+  text(0.35, y_mid, forrasok[i], font = 2, cex = 0.90, col = "#000000", adj = c(0, 0.5))
+  text(5.50, y_mid, dokumentum[i], font = betu_szam, cex = 0.88, col = "#111111", adj = c(0.5, 0.5))
+  text(8.50, y_mid, arany[i], font = betu_szam, cex = 0.88, col = "#111111", adj = c(0.5, 0.5))
+  
+  if (i < 6) {
+    segments(0, y_bot, 10, y_bot, col = "#D0D7DE", lwd = 1.5)
+  }
+}
+
+# Elválasztó vonalak (az összesítő sor fölött vastagabb vonal)
+segments(4.0, 0.10, 4.0, 6.50, col = "#CCCCCC", lwd = 1.8)
+segments(7.0, 0.10, 7.0, 6.50, col = "#CCCCCC", lwd = 1.5)
+segments(0, 6.50, 10, 6.50, col = "black", lwd = 3.5)
+segments(0, 5.70, 10, 5.70, col = "black", lwd = 2.5)
+segments(0, 0.90, 10, 0.90, col = "black", lwd = 2.5)
+segments(0, 0.10, 10, 0.10, col = "black", lwd = 3.5)
+
+dev.off()
+
+##################################################################################
+
+# Pontosan A4-es margószélességre (6.3 inch = 16 cm) kalibrált, 400 DPI-s kép
+png("2_tablazat_topikok_A4.png", width = 2520, height = 2750, res = 400)
+
+# Betűtípus (Times New Roman jellegű) és szorosabb sorköz a kétsoros címkékhez
+par(mar = c(0.2, 0.2, 0.2, 0.2), family = "serif", lheight = 0.85)
+
+plot(NULL, xlim = c(0, 10), ylim = c(0, 16.3), axes = FALSE, xlab = "", ylab = "")
+
+# A hosszabb elnevezéseket (\n jellel) két sorba tördeljük, hogy nagy betűkkel is kiférjenek
+topikok <- c(
+  "Gazdaság",
+  "Álhírek, összeesküvés-elméletek\nés oltásellenes tartalmak",
+  "Koronavírus szövődményei és\ntársbetegségek",
+  "Oltási regisztráció és logisztika",
+  "Járványügyi korlátozások és\nkijárási tilalom",
+  "Nyugati vakcinák",
+  "Ideológiai és rendszerkritikai\nvéleménydiskurzus",
+  "Sporthírek és szerbiai hírek",
+  "Rendőrségi ellenőrzések és megyei\njárványügyi helyzet",
+  "Az Operatív Törzs és a tisztifőorvos\nnapi tájékoztatói",
+  "Baleseti hírek",
+  "Kórházi ellátás és a Magyar\nOrvosi Kamara",
+  "Nemzetközi járványügyi statisztikák",
+  "Keleti vakcinák",
+  "Járványhullámok és emlékeztető\noltások",
+  "Munkahelyi és kötelező oltások\nszabályozása",
+  "Költségvetés és állami gazdasági\ntámogatások",
+  "Védettségi igazolvány és tesztelési\nszabályok",
+  "Napi járványügyi statisztikák és\nkórházi adatok",
+  "Bulvár és személyes megélések",
+  "JUNK (technikai és tematikus zaj)",
+  "Szomszédos országok járványadatai\n(Románia)",
+  "Szlovák és cseh egészségügyi\nbelpolitika",
+  "Belföldi pártpolitika és ellenzék",
+  "Egyetemi és állami elismerések",
+  "Miniszterelnöki rádióinterjúk és\nkormányzati kommunikáció",
+  "Oltási hajlandóság és\nközvélemény-kutatások",
+  "Nemzetközi és amerikai politika",
+  "Európai uniós politika és közös\nvakcinabeszerzés",
+  "Oroszország és Ukrajna\njárványhelyzete"
+)
+
+kiemelt <- c(2, 5, 7, 10, 15, 16, 18, 26)
+junk <- c(21)
+
+# Fejléc
+rect(0, 15.15, 10, 16.15, col = "#EAEFF5", border = NA)
+text(0.45, 15.65, "Topik", font = 2, cex = 0.95)
+text(0.85, 15.65, "Értelmezés (1–15.)", font = 2, cex = 0.95, pos = 4)
+text(5.50, 15.65, "Topik", font = 2, cex = 0.95)
+text(5.90, 15.65, "Értelmezés (16–30.)", font = 2, cex = 0.95, pos = 4)
+
+# Sorok kirajzolása
+for (i in 1:15) {
+  y <- 15.55 - i
+  
+  # Váltakozó sorszínezés
+  if (i %% 2 == 0) {
+    rect(0, y - 0.48, 4.92, y + 0.48, col = "#F7F7F7", border = NA)
+    rect(5.08, y - 0.48, 10, y + 0.48, col = "#F7F7F7", border = NA)
+  }
+  
+  # --- BAL OSZLOP (1-15) ---
+  id_bal <- i
+  if (id_bal %in% kiemelt) {
+    rect(0, y - 0.48, 4.92, y + 0.48, col = "#DCE8F7", border = NA)
+    betu_bal <- 2; szin_bal <- "#000000"
+  } else if (id_bal %in% junk) {
+    betu_bal <- 3; szin_bal <- "#777777"
+  } else {
+    betu_bal <- 1; szin_bal <- "#111111"
+  }
+  text(0.45, y, paste0(id_bal, "."), font = betu_bal, cex = 0.88, col = szin_bal)
+  text(0.80, y, topikok[id_bal], font = betu_bal, cex = 0.86, col = szin_bal, pos = 4)
+  
+  # --- JOBB OSZLOP (16-30) ---
+  id_jobb <- i + 15
+  if (id_jobb %in% kiemelt) {
+    rect(5.08, y - 0.48, 10, y + 0.48, col = "#DCE8F7", border = NA)
+    betu_jobb <- 2; szin_jobb <- "#000000"
+  } else if (id_jobb %in% junk) {
+    betu_jobb <- 3; szin_jobb <- "#777777"
+  } else {
+    betu_jobb <- 1; szin_jobb <- "#111111"
+  }
+  text(5.50, y, paste0(id_jobb, "."), font = betu_jobb, cex = 0.88, col = szin_jobb)
+  text(5.85, y, topikok[id_jobb], font = betu_jobb, cex = 0.86, col = szin_jobb, pos = 4)
+}
+
+# Elválasztó vonalak
+segments(5.0, 0.05, 5.0, 16.15, col = "#CCCCCC", lwd = 2)
+segments(0, 16.15, 10, 16.15, col = "black", lwd = 3.5)
+segments(0, 15.15, 10, 15.15, col = "black", lwd = 2.5)
+segments(0, 0.05, 10, 0.05, col = "black", lwd = 3.5)
+
+dev.off()
+
+###########################################################################################
+
+png("3_tablazat_kulcsszavak_A4.png", width = 2520, height = 2750, res = 400)
+
+par(mar = c(0.2, 0.2, 0.2, 0.2), family = "serif")
+
+plot(NULL, xlim = c(0, 10), ylim = c(0, 12.2), axes = FALSE, xlab = "", ylab = "")
+
+# A nyolc vizsgált topik (dimenziónként kettő), az új modell sorszámai szerint
+topik_azonositok <- c("2. topik", "5. topik", "7. topik", "10. topik",
+                      "15. topik", "16. topik", "18. topik", "26. topik")
+
+# Topikonként az első 10 Highest Prob és az első 10 FREX szó (rangsor szerint).
+# Egyedül a technikai URL-paramétereket (utm_source, utm_medium, utm_campaign)
+# hagytuk ki; a helyükre a rangsorban következő szavak kerültek (csak a 2. topikot érinti).
+hp_szavak <- list(
+  c("covid", "facebook", "hamis", "közösségi", "kapcsolatos", "elleni", "oltásellenes", "kapcsolatban", "média", "oltások"),
+  c("kötelező", "kijárási", "korlátozások", "intézkedések", "járványügyi", "továbbra", "maszkot", "tilalom", "maszk", "zárt"),
+  c("emberek", "politikai", "például", "inkább", "magyar", "ember", "kellene", "szó", "kérdés", "járvány"),
+  c("mondta", "müller", "koronavírus", "cecília", "országos", "elmondta", "elleni", "vakcina", "tisztifőorvos", "törzs"),
+  c("oltás", "harmadik", "vírus", "koronavírus", "variáns", "delta", "két", "mondta", "oltást", "súlyos"),
+  c("kötelező", "dolgozók", "oltás", "pedagógusok", "oltást", "kötelezővé", "egészségügyi", "koronavírus", "kormány", "elleni"),
+  c("védettségi", "negatív", "igazolvány", "pcr", "oltási", "teszt", "covid", "magyar", "koronavírus", "tesztet"),
+  c("orbán", "mondta", "viktor", "miniszterelnök", "kormány", "gulyás", "gergely", "magyar", "miniszter", "elmondta")
+)
+
+frex_szavak <- list(
+  c("vilaghelyzete", "gődény", "sbg", "c3", "adathalász", "abortált", "grafén", "kiberbűnözők", "reset", "brindza"),
+  c("mozik", "szabadtéren", "kinyithatnak", "létszámkorlátozás", "teraszai", "teraszok", "színházak", "rendezvényeket", "kávézók", "bárok"),
+  c("liberalizmus", "kapitalizmus", "kormányunk", "merthogy", "vö", "szocializmus", "illiberális", "illúzió", "mármint", "intellektuális"),
+  c("müller", "cecília", "centrumkórház", "szlávik", "tiszti", "főorvos", "tisztifőorvos", "közmédiának", "centrumkórházban", "pesti"),
+  c("víruskutató", "rusvai", "virológus", "variánsok", "mutáció", "variáns", "variánssal", "mutációk", "kemenesi", "ellenanyagszint"),
+  c("munkáltató", "pdsz", "totyik", "maruzsa", "tanév", "szakszervezet", "pedagógus", "tanulók", "psz", "köznevelésért"),
+  c("karanténkötelezettség", "qr", "érvényességi", "beutazás", "igazolványt", "régebbi", "kiállított", "óránál", "igazolást", "igazolványok"),
+  c("szentkirályi", "miniszterelnökséget", "gulyás", "kormányinfó", "kormányinfón", "kormányinfót", "rádióban", "kancelláriaminiszter", "gergely", "rádióinterjújában")
+)
+
+# A szavakat a cella szélességéhez igazítva tördeljük sorokba (vesszővel elválasztva)
+tordel <- function(szavak, szelesseg, cex) {
+  sorok <- character(0)
+  aktualis <- ""
+  for (szo in szavak) {
+    proba <- if (aktualis == "") szo else paste0(aktualis, ", ", szo)
+    if (aktualis != "" && strwidth(paste0(proba, ","), cex = cex, font = 3) > szelesseg) {
+      sorok <- c(sorok, paste0(aktualis, ","))
+      aktualis <- szo
+    } else {
+      aktualis <- proba
+    }
+  }
+  c(sorok, aktualis)
+}
+
+# Fejléc háttere és szövege
+rect(0, 11.30, 10, 12.10, col = "#EAEFF5", border = NA)
+text(0.85, 11.70, "Topik", font = 2, cex = 0.95, adj = c(0.5, 0.5))
+text(1.85, 11.88, "Legvalószínűbb szavak", font = 2, cex = 0.85, adj = c(0, 0.5))
+text(1.85, 11.52, "(Highest Probability)", font = 3, cex = 0.75, adj = c(0, 0.5))
+text(5.95, 11.88, "Legjellemzőbb szavak", font = 2, cex = 0.85, adj = c(0, 0.5))
+text(5.95, 11.52, "(FREX)", font = 3, cex = 0.75, adj = c(0, 0.5))
+
+# Cellánként előre tördelünk, és minden sor olyan magas lesz, amennyi szövegsor
+# kell bele (a hosszabb FREX-szavak, pl. a 26. topiknál, így nem lógnak ki)
+sor_koz <- 0.27
+cellak <- lapply(1:8, function(i) list(hp   = tordel(hp_szavak[[i]],   szelesseg = 3.85, cex = 0.80),
+                                       frex = tordel(frex_szavak[[i]], szelesseg = 3.85, cex = 0.80)))
+sor_mag <- sapply(cellak, function(c) sor_koz * max(length(c$hp), length(c$frex)) + 0.45)
+sor_teteje <- 11.30 - c(0, cumsum(sor_mag))
+also_szel <- min(sor_teteje)
+
+# Sorok kirajzolása
+for (i in 1:8) {
+  y_top <- sor_teteje[i]
+  y_bot <- sor_teteje[i + 1]
+  y_mid <- (y_top + y_bot) / 2
+  
+  if (i %% 2 == 1) {
+    rect(0, y_bot, 1.7, y_top, col = "#DCE8F7", border = NA)
+    rect(1.7, y_bot, 10, y_top, col = "#F9FBFD", border = NA)
+  } else {
+    rect(0, y_bot, 1.7, y_top, col = "#EDF3FA", border = NA)
+    rect(1.7, y_bot, 10, y_top, col = "#FFFFFF", border = NA)
+  }
+  
+  text(0.85, y_mid, topik_azonositok[i], font = 2, cex = 0.90, col = "#000000", adj = c(0.5, 0.5))
+  
+  # Highest Prob és FREX oszlop: a sorokat a cella közepére igazítjuk
+  for (oszlop in list(list(x = 1.85, sorok = cellak[[i]]$hp),
+                      list(x = 5.95, sorok = cellak[[i]]$frex))) {
+    sorok <- oszlop$sorok
+    eltolas <- (rev(seq_along(sorok)) - (length(sorok) + 1) / 2) * sor_koz
+    text(oszlop$x, y_mid + eltolas, sorok, font = 3, cex = 0.80, col = "#111111", adj = c(0, 0.5))
+  }
+
+  if (i < 8) {
+    segments(0, y_bot, 10, y_bot, col = "#D0D7DE", lwd = 1.5)
+  }
+}
+
+segments(1.7, also_szel, 1.7, 12.10, col = "#CCCCCC", lwd = 1.8)
+segments(5.8, also_szel, 5.8, 12.10, col = "#CCCCCC", lwd = 1.5)
+segments(0, 12.10, 10, 12.10, col = "black", lwd = 3.5)
+segments(0, 11.30, 10, 11.30, col = "black", lwd = 2.5)
+segments(0, also_szel, 10, also_szel, col = "black", lwd = 3.5)
+
+dev.off()
+
+###########################################################################################
+###########################################################################################
+# RÉSZLETES KÓDKÖNYV (FÜGGELÉK) – dimenziónként egy táblázat
+# Oszlopok: Kód | Definíció | Nyelvi indikátorok | Példa a korpuszból
+# A sormagasság a szöveg hosszához igazodik, ezért a kép magasságát a függvény számolja ki.
+###########################################################################################
+###########################################################################################
+
+# Szöveg tördelése a cella szélességéhez (szavanként, a tényleges betűszélesség alapján)
+tordel_szoveg <- function(szoveg, szelesseg, cex, font) {
+  szavak <- strsplit(szoveg, " ", fixed = TRUE)[[1]]
+  sorok <- character(0)
+  aktualis <- ""
+  for (szo in szavak) {
+    proba <- if (aktualis == "") szo else paste(aktualis, szo)
+    if (aktualis != "" && strwidth(proba, cex = cex, font = font) > szelesseg) {
+      sorok <- c(sorok, aktualis)
+      aktualis <- szo
+    } else {
+      aktualis <- proba
+    }
+  }
+  c(sorok, aktualis)
+}
+
+kodkonyv_tablazat <- function(fajlnev, dimenzio, sorok) {
+  oszlop_x <- c(0, 1.75, 4.25, 6.85, 10)   # oszlophatárok
+  margo    <- 0.12                         # belső margó a cellákban
+  cex      <- 0.62
+  fontok   <- c(2, 1, 1, 3)                # kód félkövér, példa dőlt
+  fejlec   <- c("Kód", "Definíció", "Nyelvi indikátorok", "Példa a korpuszból")
+
+  # 1. Méretezés egy ideiglenes, a végső képpel azonos felbontású és betűtípusú eszközön
+  png(tempfile(fileext = ".png"), width = 2520, height = 2520, res = 400)
+  par(mar = c(0.2, 0.2, 0.2, 0.2), family = "serif")
+  plot(NULL, xlim = c(0, 10), ylim = c(0, 10), axes = FALSE, xlab = "", ylab = "")
+  sor_lepes <- strheight("ÁÉgy", cex = cex) * 1.75
+  cellak <- lapply(sorok, function(s) lapply(1:4, function(j)
+    tordel_szoveg(s[j], oszlop_x[j + 1] - oszlop_x[j] - 2 * margo, cex, fontok[j])))
+  dev.off()
+
+  sor_magassag <- sapply(cellak, function(c) max(lengths(c)) * sor_lepes + 2 * margo)
+  cim_mag   <- 0.70
+  fej_mag   <- 0.55
+  H <- 0.10 + cim_mag + fej_mag + sum(sor_magassag) + 0.10
+
+  # 2. Rajzolás
+  png(fajlnev, width = 2520, height = round(2520 * H / 10), res = 400)
+  par(mar = c(0.2, 0.2, 0.2, 0.2), family = "serif")
+  plot(NULL, xlim = c(0, 10), ylim = c(0, H), axes = FALSE, xlab = "", ylab = "")
+
+  y <- H - 0.10
+
+  # Dimenzió címsora
+  rect(0, y - cim_mag, 10, y, col = "#DCE8F7", border = NA)
+  text(0.25, y - cim_mag / 2, dimenzio, font = 2, cex = 0.90, adj = c(0, 0.5))
+  segments(0, y, 10, y, col = "black", lwd = 3.5)
+  y <- y - cim_mag
+
+  # Fejléc
+  rect(0, y - fej_mag, 10, y, col = "#EAEFF5", border = NA)
+  for (j in 1:4) text(oszlop_x[j] + margo, y - fej_mag / 2, fejlec[j], font = 2, cex = 0.72, adj = c(0, 0.5))
+  segments(0, y, 10, y, col = "#999999", lwd = 1.2)
+  y <- y - fej_mag
+  segments(0, y, 10, y, col = "black", lwd = 2.5)
+  tabla_teteje <- y
+
+  # Sorok
+  for (i in seq_along(sorok)) {
+    y_top <- y
+    y_bot <- y - sor_magassag[i]
+    if (i %% 2 == 1) {
+      rect(0, y_bot, oszlop_x[2], y_top, col = "#DCE8F7", border = NA)
+      rect(oszlop_x[2], y_bot, 10, y_top, col = "#F9FBFD", border = NA)
+    } else {
+      rect(0, y_bot, oszlop_x[2], y_top, col = "#EDF3FA", border = NA)
+      rect(oszlop_x[2], y_bot, 10, y_top, col = "#FFFFFF", border = NA)
+    }
+    for (j in 1:4) {
+      sorai <- cellak[[i]][[j]]
+      y_szoveg <- y_top - margo - sor_lepes / 2 - (seq_along(sorai) - 1) * sor_lepes
+      text(oszlop_x[j] + margo, y_szoveg, sorai, font = fontok[j], cex = cex,
+           col = if (j == 1) "#000000" else "#111111", adj = c(0, 0.5))
+    }
+    if (i < length(sorok)) segments(0, y_bot, 10, y_bot, col = "#D0D7DE", lwd = 1.5)
+    y <- y_bot
+  }
+
+  # Függőleges elválasztók
+  segments(oszlop_x[2], y, oszlop_x[2], tabla_teteje + fej_mag, col = "#CCCCCC", lwd = 1.8)
+  for (x in oszlop_x[3:4]) segments(x, y, x, tabla_teteje + fej_mag, col = "#CCCCCC", lwd = 1.2)
+
+  # Alsó záróvonal
+  segments(0, y, 10, y, col = "black", lwd = 3.5)
+
+  dev.off()
+}
+
+###########################################################################################
+# F1. Hatalom és szubjektum viszonya
+###########################################################################################
+
+kodkonyv_tablazat(
+  "F1_kodkonyv_hatalom_es_szubjektum.png",
+  "1. Hatalom és szubjektum viszonya",
+  list(
+    c("1.1 Ágencia",
+      "Ki cselekszik és ki az elszenvedő; a hatalmi cselekvő megjelenik-e vagy rejtve marad.",
+      "Szenvedő szerkezet, személytelen alany, alany nélküli többes szám („elrendelik”), nominalizáció („az intézkedések bevezetése”).",
+      "„Mit tehetünk, ha cégünknél elrendelik a kötelező oltást?” (T16)"),
+    c("1.2 Modalitás",
+      "Cselekvést előíró, tiltó vagy feltételhez kötő formák.",
+      "„kell”, „kötelező”, „tilos”, „csak … ha”, felszólító mód.",
+      "„a korlátozási rendet fenn kell tartani” (T26)"),
+    c("1.3 Felelősség-áthárítás",
+      "Az egyén önfegyelemre szólítása, a felelősség a szubjektumra helyezése (kormányzatiság, önszabályozás).",
+      "„egyéni felelősség”, „rajtunk múlik”, „mindenkinek”, „ne indulatból döntsenek”.",
+      "„az embereknek átgondoltan, nem indulatból kell dönteniük az oltásról” (T26)"),
+    c("1.4 Szankció és kontroll",
+      "Büntetés, kizárás, egzisztenciális következmény; a kontroll továbbadása más szereplőre.",
+      "Bírság, feljelentés, felmondás, fizetés nélküli szabadság, „a munkáltató elrendelheti”.",
+      "„A fizetés nélküli szabadság és az ezt követő esetleges felmondás…” (T16)"),
+    c("1.5 Naturalizáció",
+      "A kényszer alternatíva nélküli, magától értetődő állapotként való bemutatása.",
+      "„nincs más út”, „csak … segít”, „erre az életre kell berendezkedni”.",
+      "„csak az oltás segít, az elszigetelés nem” (T26)")
+  )
+)
+
+###########################################################################################
+# F2. Biopolitikai intézkedések
+###########################################################################################
+
+kodkonyv_tablazat(
+  "F2_kodkonyv_biopolitikai_intezkedesek.png",
+  "2. Biopolitikai intézkedések",
+  list(
+    c("2.1 Védelmi retorika",
+      "Az intézkedés indoka az élet, az egészség és a népesség védelme.",
+      "„életeket menteni”, „védekezés”, „megvédeni az időseket”, „veszélyhelyzet”.",
+      "„ha az oltások gyorsabbak lesznek és többen kérik, akkor életeket nyerünk” (T26)"),
+    c("2.2 Kategorizáció (normális és veszélyes testek)",
+      "A népesség felosztása engedelmes (védett) és veszélyes (oltatlan, fertőző) csoportokra.",
+      "Beoltott, védett, oltatlan, „akik nincsenek beoltva”, fertőzött, kontakt.",
+      "„maradnak olyan korlátozások, ami alól csak a beoltottak, a védettek kapnak felmentést” (T5)"),
+    c("2.3 Ideológiai négyszög",
+      "A „mi” jó és az „ők” rossz tulajdonságainak kiemelése, illetve elhallgatása (van Dijk).",
+      "Felsőfok, összehasonlítás, „elsőként”, „Európában nálunk a legjobb”, „Brüsszel lassú”.",
+      "„Magyarország, miután elsőként vezette be a védettségi igazolványt…” (T18)"),
+    c("2.4 Biopolitikai legitimáció",
+      "Az intézkedés igazolása a kollektív egészség céljával.",
+      "Ok-okozati kötőszó és egészségügyi cél („mert a vírus…”, „hogy megvédjük…”).",
+      "„a járványügyi készültség továbbra is indokolt, mert a vírus itt van, fertőz és megbetegíti azokat, akik nincsenek beoltva” (T5)"),
+    c("2.5 Térbeli és adminisztratív kontroll",
+      "A kontroll formája: fizikai, térbeli korlátozás (fegyelmező hatalom) vagy belépés, igazolás, adatellenőrzés (kontrolltársadalom).",
+      "Kijárási tilalom, zárva, létszámkorlátozás, illetve igazolvány, QR-kód, „igazolvánnyal látogatható”.",
+      "Térbeli: „kijárási tilalom”, „zárt” (T5); adminisztratív: „QR”, „érvényességi”, „beutazás” (T18)")
+  )
+)
+
+###########################################################################################
+# F3. Igazság-rezsimek és hatalmi tudás
+###########################################################################################
+
+kodkonyv_tablazat(
+  "F3_kodkonyv_igazsag_rezsimek.png",
+  "3. Igazság-rezsimek és hatalmi tudás",
+  list(
+    c("3.1 Kontextuskontroll és szerzőség",
+      "Ki jogosult beszélni és milyen szerepben; a hivatalos forrás felhatalmazása (van Dijk).",
+      "Idéző igék („mondta”, „közölte”), titulusok (tisztifőorvos, professzor), „az Operatív Törzs szerint”.",
+      "„Jakab Ferenc virológus az ATV Híradónak” (T15)"),
+    c("3.2 Számjáték",
+      "Statisztikák retorikai használata: a szám mint vitathatatlan tény vagy sürgetés.",
+      "Esetszámok, halálozás, százalékok, „egy nap alatt”, „minden eddiginél”.",
+      "„százból két ember belehal a vírusba, húsz pedig maradandó sérüléssel…” (T15)"),
+    c("3.3 Evidencialitás",
+      "A tudás bizonyosságának nyelvi jelölése.",
+      "„bizonyított”, „hatékony és biztonságos”, „nincs bizonyíték”, „feltételezhetően”.",
+      "„feltételezhetően súlyosabb betegséget is okoz” (T15)"),
+    c("3.4 Episztemikus legitimáció",
+      "Politikai döntés igazolása tudományos vagy orvosi tudással („orvosi tekintet”).",
+      "„a szakértők javaslatára”, „az adatok alapján döntöttünk”, „a tudomány szerint”.",
+      "„a harmadik oltás fontosságát is kiemelte, mivel az antitestek nagyjából négy–hat hónapig nyújtanak védelmet” (T15)"),
+    c("3.5 Szakértői konszenzus vagy disszenzus",
+      "Egységesnek mutatott igazság, illetve a szakértők és a kormány közötti vita.",
+      "„egyetértenek”, illetve „nem történt érdemi intézkedés”, „figyelmeztet”.",
+      "„A lelassuló oltáskampányon kívül nem történt érdemi megelőző intézkedés” (MOK, T12)")
+  )
+)
+
+###########################################################################################
+# F4. Ellen-magatartás
+###########################################################################################
+
+kodkonyv_tablazat(
+  "F4_kodkonyv_ellen_magatartas.png",
+  "4. Ellen-magatartás",
+  list(
+    c("4.1 Delegitimáció",
+      "A hatalom vagy a hivatalos tudás hitelességének tagadása.",
+      "Hazugság, propaganda, cenzúra, manipuláció, „becsapták önöket”.",
+      "„Ha önök is bedőltek a hatóságok új propagandájának…” (T2)"),
+    c("4.2 A bizalmatlanság célpontja",
+      "Kivel vagy mivel szemben fogalmazódik meg a bizalmatlanság.",
+      "Al-értékek: kormány, egészségügyi hatóság, tudomány vagy szakértők, nemzetközi szervezet (WHO, EU), média, platform, gyógyszeripar, „elit”.",
+      "„a gyógyszeriparnak soha nem az a célja…” (T7) – gyógyszeripar"),
+    c("4.3 A bizalmatlanság típusa",
+      "Mire vonatkozik a kétely.",
+      "Al-értékek: kompetencia („nem értenek hozzá”), integritás vagy szándék („hazudnak”, „haszonszerzés”), összeesküvés (rejtett, összehangolt cél).",
+      "„az elit, a látható és árnyékkormány szövetségeseinek eltávolításához” (T7) – összeesküvés"),
+    c("4.4 Ellen-tudás",
+      "Alternatív szakértők, források és „tények” állítása a hivatalossal szemben.",
+      "„cenzúrázott orvos”, „a tényekkel nem lehet vitatkozni”, alternatív hírportálok.",
+      "„Egy cenzúrázott orvos cenzúrázatlan gondolatai…” (T2)"),
+    c("4.5 Szabadság- és jogdiskurzus",
+      "Az intézkedés mint a szabadság, a jogok vagy a test feletti rendelkezés korlátozása.",
+      "Szabadság, jog, „a testükről szabadon döntenek”, megkülönböztetés, zsarolás.",
+      "„Az emberek szabadságát szinte a saját szemük előtt nyirbálják meg” (T7)"),
+    c("4.6 Harc a diskurzusért",
+      "Ki mondhat mit: moderáció és cenzúra, főáramú és alternatív narratíva.",
+      "Betiltás, törlés, moderáció, „főáramú”, „cenzúra nélkül”.",
+      "„betiltanak minden oltásellenes tartalmat a felületükön” (T2)")
+  )
+)

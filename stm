@@ -1,0 +1,31 @@
+getwd()
+
+EREDMENY_MAPPA <- "E:/EKÖP/STM/STM_eles_futtatas"
+utvonal <- function(fajlnev) file.path(EREDMENY_MAPPA, fajlnev)
+
+SEED            <- 42
+MAX_EM_ITERACIO <- 150
+
+stm_adatok <- readRDS(utvonal("stm_bemenet.rds"))
+
+VEGSO_K <- 30
+
+gc()
+modell <- gyorsitotar(sprintf("stm_modell_vegso_K%d.rds", VEGSO_K), {
+  stm(documents  = stm_adatok$documents,
+      vocab      = stm_adatok$vocab,
+      K          = VEGSO_K,
+      prevalence = ~ s(datum_num) + forras,
+      data       = stm_adatok$meta,
+      init.type  = "Spectral",              # determinisztikus, stabil inicializálás
+      control    = list(maxV = 10000),      # nagy szókészletnél a spektrális lépéshez
+      max.em.its = MAX_EM_ITERACIO,
+      seed       = SEED,
+      verbose    = TRUE,
+      reportevery = 5)
+})
+
+
+
+saveRDS(modell, file = "stm_eredmeny.rds")
+modell <- readRDS("stm_eredmeny.rds")

@@ -1,0 +1,54 @@
+k_kereses <- gyorsitotar("searchK.rds", {
+  set.seed(SEED)
+  idx <- sort(sample(length(stm_adatok$documents),
+                     floor(SEARCHK_ARANY * length(stm_adatok$documents))))
+  minta <- prepDocuments(stm_adatok$documents[idx], stm_adatok$vocab,
+                         stm_adatok$meta[idx, , drop = FALSE],
+                         lower.thresh = 1, upper.thresh = Inf)
+  searchK(documents  = minta$documents,
+          vocab      = minta$vocab,
+          K          = K_JELOLTEK,
+          prevalence = ~ s(datum_num) + forras,
+          data       = minta$meta,
+          init.type  = "Spectral",
+          control    = list(maxV = 10000),
+          max.em.its = MAX_EM_ITERACIO,   # alapértelmezés 500 lenne: nagyon lassú
+          cores      = SEARCHK_MAGOK,
+          verbose    = TRUE)
+})
+gc()
+
+png(utvonal("searchK_diagnosztika.png"), width = 2000, height = 1200, res = 150)
+plot(k_kereses)
+dev.off()
+
+# Szemantikai koherencia vs. exkluzivitás: a topikmodellezés standard
+# K-választási ábrája (Roberts és mtsai., 2014). A jobb felső sarok a jó.
+k_eredmeny <- as.data.table(lapply(k_kereses$results, unlist))
+fwrite(k_eredmeny, utvonal("searchK_eredmenyek.csv"))
+
+png(utvonal("searchK_koherencia_exkluzivitas.png"), width = 1400, height = 1200, res = 150)
+plot(k_eredmeny$semcoh, k_eredmeny$exclus, type = "b", pch = 19,
+     xlab = "Szemantikai koherencia", ylab = "Exkluzivitás",
+     main = "Témaszám-választás: koherencia és exkluzivitás")
+text(k_eredmeny$semcoh, k_eredmeny$exclus, labels = paste0("K=", k_eredmeny$K), pos = 3)
+dev.off()
+
+# K kiválasztása: a 30-at választjuk, ha a három illeszkedési mutatóból
+# legalább kettő szerint jobb (held-out likelihood: magasabb; residual:
+# alacsonyabb; lower bound: magasabb). A szemantikai koherencia nem
+# illeszkedési mutató, ezért a döntésben nem szerepel (lásd az ábrát).
+k20 <- k_eredmeny[K == 20]
+k30 <- k_eredmeny[K == 30]
+jobb_mutatok <- c(heldout  = k30$heldout  > k20$heldout,
+                  residual = k30$residual < k20$residual,
+                  lbound   = k30$lbound   > k20$lbound)
+VEGSO_K <- if (sum(jobb_mutatok) >= 2) 30 else 20
+
+sink(utvonal("K_valasztas.txt"))
+print(k_eredmeny)
+cat("\nA K=30 jobb ezekben a mutatókban:\n")
+print(jobb_mutatok)
+cat("\nVálasztott K:", VEGSO_K, "\n")
+sink()
+message("Választott K: ", VEGSO_K)
